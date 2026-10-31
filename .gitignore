@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ambientes virtuais (caso teste a API fora do Docker)
+venv/
+.venv/
+ENV/
+env/
+
+# Variáveis de ambiente e credenciais
+.env
+*.env
+
+# Volumes locais de dados (caso adicione volumes persistentes para Prometheus/Grafana)
+prometheus_data/
+grafana_data/
+alertmanager_data/
+
+# Logs
+*.log
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos do Sistema Operacional (Windows / WSL / Linux / macOS)
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
