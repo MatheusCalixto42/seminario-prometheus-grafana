@@ -12,14 +12,14 @@ app = Flask(__name__)
 # e contabilizar os códigos de status (200, 500, etc.) por rota.
 REQUEST_COUNT = Counter(
 	'http_requests_total',
-	'Total de requisições HTTP recebidas pela API',
+	'Total de requisicoes HTTP recebidas pela API',
 	['method', 'endpoint', 'status']
 )
 
 # Histogram: Registra durações em segundos para calcularmos latência e percentis.
 REQUEST_LATENCY = Histogram(
 	'http_request_duration_seconds',
-	'Tempo de resposta das requisições HTTP em segundos',
+	'Tempo de resposta das requisicoes HTTP em segundos',
 	['method', 'endpoint'],
 )
 
@@ -34,16 +34,16 @@ def start_timer():
 	request.start_time = time.time()
 
 @app.after_request
-def record_metrics(responde):
-	# IMPORTANTE: Ignoramos '/metrics' para que a própria raspagem do Prometheus
-	# não suje as métricas de tráfego real da aplicação
-	if request.path != '/metrics':
-		latency = time.time() - request.start_time
-		REQUEST_LATENCY.labels(method=request.method, endpoint=request.path).observe(latency)
+def record_metrics(response):
+    # IMPORTANTE: Ignoramos '/metrics' para que a própria raspagem do Prometheus
+    # não suje as métricas de tráfego real da aplicação
+    if request.path != '/metrics':
+        latency = time.time() - request.start_time
+        REQUEST_LATENCY.labels(method=request.method, endpoint=request.path).observe(latency)
         REQUEST_COUNT.labels(
-            	method=request.method,
-            	endpoint=request.path,
-            	status=response.status_code
+            method=request.method,
+            endpoint=request.path,
+            status=response.status_code
         ).inc()
     return response
 
@@ -53,9 +53,9 @@ def record_metrics(responde):
 
 @app.route('/')
 def home():
-    """Rota saudável para simular tráfego normal (HTTP 200)."""
+    """Rota saudavel para simular trafego normal (HTTP 200)."""
     return jsonify({
-        "message": "API de pé e operante!",
+        "message": "API de pe e operante!",
         "status": "healthy"
     }), 200
 
@@ -63,7 +63,7 @@ def home():
 def simulate_error():
     """
     Rota de falha proposital para simular erros HTTP 500.
-    Será usada mais adiante para testar nossos alertas de picos de erro.
+    Sera usada mais adiante para testar nossos alertas de picos de erro.
     """
     return jsonify({
         "error": "Falha interna simulada no servidor!",
@@ -74,7 +74,7 @@ def simulate_error():
 def metrics():
     """
     Endpoint de Telemetria.
-    O Prometheus fará o scraping aqui. Retorna o texto formatado das métricas.
+    O Prometheus fara o scraping aqui. Retorna o texto formatado das metricas.
     """
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 	
