@@ -5,15 +5,15 @@ global:
 # Definição dos alvos (Scrape Configs)
 scrape_configs:
   # 1. Coleta das métricas do próprio Prometheus
-  - job_name: 'prometheus'
+  - job_name: 'auto-monitoramento-prometheus'
     static_configs:
       - targets: ['localhost:9090']
   # 2. Coleta de métricas do Sistema Operacional (Hardware/Rede) via Node Exporter
-  - job_name: 'node-exporter'
+  - job_name: 'sistema-operacional'
     static_configs:
       - targets: ['node-exporter:9100']
   # 3. Coleta de métricas da nossa API Flask instrumentada
-  - job_name: 'flask-app'
+  - job_name: 'aplicacao-monitorada'
     metrics_path: '/metrics'  # Endpoint onde a aplicação expõe as métricas
     static_configs:
       - targets: ['app:5000']
