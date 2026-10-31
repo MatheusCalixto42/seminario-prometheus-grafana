@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s      # Intervalo padrão para raspar métricas dos alvos
+  evaluation_interval: 15s  # Intervalo para avaliar regras de alerta
+
+# Definição dos alvos (Scrape Configs)
+scrape_configs:
+  # 1. Coleta das métricas do próprio Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  # 2. Coleta de métricas do Sistema Operacional (Hardware/Rede) via Node Exporter
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+  # 3. Coleta de métricas da nossa API Flask instrumentada
+  - job_name: 'flask-app'
+    metrics_path: '/metrics'  # Endpoint onde a aplicação expõe as métricas
+    static_configs:
+      - targets: ['app:5000']
+
+# --- Comentários sobre o arquivo ---
+
+# - global.scrape_interval: 15s: A cada 15 segundos o Prometheus abre uma conexão TCP, faz um HTTP GET em cada alvo e fecha. 
+# Em produção de alta densidade, ajusta-se esse valor para balancear overhead de rede vs precisão temporal.
+
+# - job_name: Rótulo adicionado automaticamente a todas as métricas raspadas daquele alvo (job="flask-app", job="node-exporter").
+
+# - targets: ['app:5000']: O Prometheus usará o DNS interno do Docker para resolver o IP do contêiner app.
