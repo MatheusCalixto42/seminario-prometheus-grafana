@@ -1,6 +1,9 @@
 global:
-  scrape_interval: 15s      # Intervalo padrão para raspar métricas dos alvos
-  evaluation_interval: 15s  # Intervalo para avaliar regras de alerta
+  scrape_interval: 5s      # Intervalo padrão para raspar métricas dos alvos
+  evaluation_interval: 5s  # Intervalo para avaliar regras de alerta
+
+rule_files:
+  - "alert_rules.yml"
 
 # Definição dos alvos (Scrape Configs)
 scrape_configs:

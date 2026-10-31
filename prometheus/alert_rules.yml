@@ -1,0 +1,38 @@
+groups:
+  - name: alertas-laboratorio
+    rules:
+      # 1. Alerta de Disponibilidade de Rede/Serviço (Camada 7)
+      - alert: Aplicacao-Indisponivel
+        expr: up{job="aplicacao-monitorada"} == 0
+        for: 10s # Espera apenas 10 segundos em PENDING antes de ir para FIRING
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aplicação indisponivel"
+          description: "O Prometheus nao conseguiu realizar o scrape no container da aplicacao por mais de 10 segundos."
+      # 2. Alerta de Degradação / Erro HTTP 500 (Camada 7)
+      - alert: Alta-Taxa-Erros-5xx
+      # Usamos janela de [30s] para reagir rápido a rajadas curtas
+        expr: rate(http_requests_total{job="aplicacao-monitorada", status="500"}[30s]) > 0
+        for: 5s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pico de erros HTTP 500 detectado"
+          description: "A aplicação esta respondendo com status 500. Possivel instabilidade interna ou falha de aplicacao."
+      # 3. Alerta de Disponibilidade de Rede/Serviço (Camada 4)
+      - alert: Sistema-Operacional-Indisponivel
+        expr: up{job="sistema-operacional"} == 0
+        for: 10s # Espera apenas 10 segundos em PENDING antes de ir para FIRING
+        labels:
+          severity: critical
+        annotations:
+          summary: "Sistema Operacional indisponivel"
+          description: "O Prometheus nao conseguiu realizar o scrape no container do sistema operacional por mais de 10 segundos."
+
+# -- Comentarios do arquivo --
+
+# - groups: Agrupamento lógico de regras executadas em paralelo.
+# - expr: up{job="aplicacao-monitorada"} == 0.
+# - labels.severity: Categoriza o impacto (warning para degradação, critical para queda total).
+# - annotations: Mensagens que explicam o incidente em linguagem humana.
