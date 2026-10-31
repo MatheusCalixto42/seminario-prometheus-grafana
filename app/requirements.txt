@@ -1,0 +1,6 @@
+# MicroFramework web leve para expor as rotas HTTP
+Flask==3.0.3
+
+# Biblioteca oficial mantida pela equipe do Prometheus para Python. Ela gerencia os contadores em memória e 
+# compila as métricas no formato de texto oficial (Prometheus Exposition Format / OpenMetrics)
+prometheus-client==0.20.0
