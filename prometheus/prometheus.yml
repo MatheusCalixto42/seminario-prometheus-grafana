@@ -2,6 +2,12 @@ global:
   scrape_interval: 5s      # Intervalo padrão para raspar métricas dos alvos
   evaluation_interval: 5s  # Intervalo para avaliar regras de alerta
 
+# Bloco de integração com o Alertmanager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 rule_files:
   - "alert_rules.yml"
 

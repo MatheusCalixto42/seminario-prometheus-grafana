@@ -1,0 +1,19 @@
+global:
+  resolve_timeout: 1m  # Tempo para considerar um alerta resolvido se ele parar de chegar
+
+route:
+  # Agrupa alertas por nome da regra e severidade para condensar notificações
+  group_by: ['alertname', 'severity']
+  
+  # Tempos otimizados para a dinâmica da sua apresentação:
+  group_wait: 5s       # Espera 5s para agrupar alertas similares antes de despachar
+  group_interval: 5s   # Intervalo para enviar atualizações de novos alertas no mesmo grupo
+  repeat_interval: 1h  # Não reenvia o mesmo alerta repetido antes de 1 hora
+  
+  # Destinatário padrão
+  receiver: 'painel-noc'
+
+receivers:
+  - name: 'painel-noc'
+    # O Alertmanager gerencia e exibe todos os alertas no painel Web (:9093).
+    # Em produção, aqui adicionamos webhooks de Discord, Slack, Telegram ou E-mail.
