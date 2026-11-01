@@ -1,38 +1,61 @@
 groups:
-  - name: alertas-laboratorio
+  - name: alertas-netshop-noc-soc
     rules:
-      # 1. Alerta de Disponibilidade de Rede/Serviço (Camada 7)
+      # 1. DISPONIBILIDADE (Camada 7): Queda total do contêiner da loja
       - alert: Aplicacao-Indisponivel
         expr: up{job="aplicacao-monitorada"} == 0
-        for: 10s # Espera apenas 10 segundos em PENDING antes de ir para FIRING
+        for: 10s
         labels:
           severity: critical
+          categoria: disponibilidade
         annotations:
-          summary: "Aplicação indisponivel"
-          description: "O Prometheus nao conseguiu realizar o scrape no container da aplicacao por mais de 10 segundos."
-      # 2. Alerta de Degradação / Erro HTTP 500 (Camada 7)
-      - alert: Alta-Taxa-Erros-5xx
-      # Usamos janela de [30s] para reagir rápido a rajadas curtas
-        expr: rate(http_requests_total{job="aplicacao-monitorada", status="500"}[30s]) > 0
+          summary: "NetShop fora do ar (Target DOWN)"
+          description: "O Prometheus nao conseguiu realizar o scrape na porta 5000 por mais de 10 segundos."
+
+      # 2. INFRAESTRUTURA (Host/SO): Perda de comunicação com o Node Exporter
+      - alert: Sistema-Operacional-Indisponivel
+        expr: up{job="sistema-operacional"} == 0
+        for: 10s
+        labels:
+          severity: critical
+          categoria: infraestrutura
+        annotations:
+          summary: "Agente do Sistema Operacional indisponivel"
+          description: "Sem coleta de metricas de hardware e interfaces de rede ha mais de 10 segundos."
+
+      # 3. SEGURANÇA (SOC): Detecção de anomalia de autenticação (Brute-Force)
+      - alert: Suspeita-Ataque-BruteForce
+        expr: rate(http_requests_total{job="aplicacao-monitorada", endpoint="/login", status="401"}[30s]) > 0.5
+        for: 5s
+        labels:
+          severity: critical
+          categoria: seguranca
+        annotations:
+          summary: "Possivel ataque de Brute-Force na rota /login"
+          description: "Taxa elevada de falhas HTTP 401 (> 0.5 req/s nos ultimos 30s). Verificar origem do trafego."
+
+      # 4. REDES / QoS (SLA): Latência p95 do Checkout acima de 1 segundo
+      - alert: Latencia-Critica-Checkout
+        expr: >
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="aplicacao-monitorada", endpoint="/checkout"}[30s]))
+          ) > 1.0
         for: 5s
         labels:
           severity: warning
+          categoria: qos-latencia
         annotations:
-          summary: "Pico de erros HTTP 500 detectado"
-          description: "A aplicação esta respondendo com status 500. Possivel instabilidade interna ou falha de aplicacao."
-      # 3. Alerta de Disponibilidade de Rede/Serviço (Camada 4)
-      - alert: Sistema-Operacional-Indisponivel
-        expr: up{job="sistema-operacional"} == 0
-        for: 10s # Espera apenas 10 segundos em PENDING antes de ir para FIRING
+          summary: "Degradacao de SLA: Latencia p95 > 1s no Checkout"
+          description: "95% dos clientes estao aguardando mais de 1 segundo para finalizar pagamentos."
+
+      # 5. CONFIABILIDADE (Upstream): Erros 5xx / 504 Gateway Timeout
+      - alert: Falha-Gateway-Pagamento
+        expr: rate(http_requests_total{job="aplicacao-monitorada", status=~"5.."}[30s]) > 0
+        for: 5s
         labels:
           severity: critical
+          categoria: aplicacao
         annotations:
-          summary: "Sistema Operacional indisponivel"
-          description: "O Prometheus nao conseguiu realizar o scrape no container do sistema operacional por mais de 10 segundos."
-
-# -- Comentarios do arquivo --
-
-# - groups: Agrupamento lógico de regras executadas em paralelo.
-# - expr: up{job="aplicacao-monitorada"} == 0.
-# - labels.severity: Categoriza o impacto (warning para degradação, critical para queda total).
-# - annotations: Mensagens que explicam o incidente em linguagem humana.
+          summary: "Erros HTTP 5xx/504 detectados na NetShop"
+          description: "Falha de comunicacao com o Gateway de Pagamento ou erro interno na API."

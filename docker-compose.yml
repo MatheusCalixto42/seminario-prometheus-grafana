@@ -1,21 +1,23 @@
 version: '3.8'
 
 services:
-  # Nossa API Flask
+  # 1. API do E-commerce NetShop (Camada 7)
   app:
     build: ./app
     container_name: flask-app
     ports:
       - "5000:5000"
     restart: always
-  # Agente de métricas do Host / Sistema Operacional
+
+  # 2. Agente de métricas do Host / Sistema Operacional (Camadas 2/3/4)
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
     ports:
       - "9100:9100"
     restart: always
-  # Servidor de Coleta e Armazenamento (TSDB)
+
+  # 3. Servidor de Coleta e Armazenamento (TSDB)
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -24,11 +26,13 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     restart: always
-  # Central de Tratamento e Despacho de Alertas
+
+  # 4. Central de Tratamento e Despacho de Alertas
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
@@ -37,6 +41,33 @@ services:
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     restart: always
+
+  # 5. Gerador de Tráfego Orgânico (Simula clientes navegando e comprando 24/7)
+  load-generator:
+    image: curlimages/curl:latest
+    container_name: load-generator
+    restart: always
+    depends_on:
+      - app
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          curl -s --max-time 5 http://app:5000/produtos > /dev/null
+          sleep 0.5
+          curl -s --max-time 5 http://app:5000/produtos > /dev/null
+          sleep 0.5
+          curl -s --max-time 5 -X POST http://app:5000/login -d '{"usuario":"cliente","senha":"cliente123"}' > /dev/null
+          sleep 0.5
+          curl -s --max-time 5 http://app:5000/produtos > /dev/null
+          sleep 0.5
+          curl -s --max-time 5 -X POST http://app:5000/checkout > /dev/null
+          sleep 1
+        done
+
+# Volume persistente para não perder o histórico de métricas ao reiniciar contêineres
+volumes:
+  prometheus_data:
 
 # --Comentários sobre o arquivo--
 
