@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: netshop
+    type: file
+    allowUiUpdates: false    # O arquivo JSON do repositório é a fonte oficial do dashboard
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/dashboards
