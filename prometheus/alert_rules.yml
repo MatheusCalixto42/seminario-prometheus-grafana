@@ -59,3 +59,25 @@ groups:
         annotations:
           summary: "Erros HTTP 5xx/504 detectados na NetShop"
           description: "Falha de comunicacao com o Gateway de Pagamento ou erro interno na API."
+
+      # 6. INSTABILIDADE (Camada 7): Recursos da loja respondendo HTTP 404
+      - alert: Instabilidade-Erros-404
+        expr: sum(rate(http_requests_total{job="aplicacao-monitorada", status="404"}[30s])) > 0.1
+        for: 5s
+        labels:
+          severity: warning
+          categoria: aplicacao
+        annotations:
+          summary: "Instabilidade: respostas HTTP 404 na NetShop"
+          description: "Taxa de HTTP 404 acima de 0.1 req/s nos ultimos 30s."
+
+      # 7. SATURACAO: Consumo elevado de memoria pelo processo da API
+      - alert: Consumo-Memoria-Elevado
+        expr: process_resident_memory_bytes{job="aplicacao-monitorada"} > 250e6
+        for: 10s
+        labels:
+          severity: warning
+          categoria: saturacao
+        annotations:
+          summary: "Consumo elevado de memoria na API NetShop"
+          description: "O processo da API esta usando mais de 250 MB de memoria."
