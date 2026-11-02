@@ -16,10 +16,16 @@ app = Flask(__name__)
 # ==============================================================================
 MODO_CAOS = {
     "latencia_checkout_seg": 0.0,  # Tempo extra injetado no pagamento (QoS/SLA)
-    "falha_gateway": False         # Simula queda do provedor de pagamento (HTTP 504)
+    "falha_gateway": False,        # Simula queda do provedor de pagamento (HTTP 504)
+    "latencia_geral_seg": 0.0,     # Tempo extra em todas as rotas da loja (lentidão)
+    "taxa_erro_404": 0.0,          # Fração das requisições da loja que retorna HTTP 404 (0 a 1)
+    "memoria_mb": 0                # Memória mantida ocupada pelo processo da API
 }
 
 ROTAS_IGNORADAS = ('/metrics', '/admin/caos')
+ROTAS_LOJA = ('/produtos', '/login', '/checkout')
+LIMITE_MEMORIA_MB = 1024           # Evita esgotar a memória do ambiente Docker
+MEMORIA_ALOCADA = None
 
 # ==============================================================================
 # 1. DEFINIÇÃO DAS MÉTRICAS (Os 4 Sinais de Ouro: Tráfego, Erros, Latência, Saturação)
@@ -63,6 +69,16 @@ def start_timer():
     request.monitorar = request.path not in ROTAS_IGNORADAS
     if request.monitorar:
         ACTIVE_REQUESTS.inc()
+
+@app.before_request
+def aplicar_caos():
+    """Injeta lentidão e instabilidade nas rotas da loja, depois de iniciar a medição."""
+    if request.path not in ROTAS_LOJA:
+        return None
+    time.sleep(MODO_CAOS["latencia_geral_seg"])
+    if random.random() < MODO_CAOS["taxa_erro_404"]:
+        return jsonify({"erro": "Recurso temporariamente indisponivel"}), 404
+    return None
 
 @app.after_request
 def record_metrics(response):
@@ -151,6 +167,13 @@ def checkout():
 # 4. CONTROLE DE CAOS & TELEMETRIA
 # ==============================================================================
 
+def alocar_memoria(megabytes):
+    """Mantém um bloco preenchido em memória para elevar o consumo do processo."""
+    global MEMORIA_ALOCADA
+    MODO_CAOS["memoria_mb"] = max(0, min(int(megabytes), LIMITE_MEMORIA_MB))
+    MEMORIA_ALOCADA = None
+    MEMORIA_ALOCADA = bytearray(b"\x01") * (MODO_CAOS["memoria_mb"] * 1024 * 1024)
+
 @app.route('/admin/caos', methods=['GET', 'POST'])
 def gerenciar_caos():
     """Endpoint de controle para o script interativo injetar ou limpar anomalias."""
@@ -160,6 +183,12 @@ def gerenciar_caos():
             MODO_CAOS["latencia_checkout_seg"] = float(dados["latencia_checkout_seg"])
         if "falha_gateway" in dados:
             MODO_CAOS["falha_gateway"] = bool(dados["falha_gateway"])
+        if "latencia_geral_seg" in dados:
+            MODO_CAOS["latencia_geral_seg"] = max(0.0, float(dados["latencia_geral_seg"]))
+        if "taxa_erro_404" in dados:
+            MODO_CAOS["taxa_erro_404"] = max(0.0, min(float(dados["taxa_erro_404"]), 1.0))
+        if "memoria_mb" in dados:
+            alocar_memoria(dados["memoria_mb"])
     return jsonify({"modo_caos": MODO_CAOS}), 200
 
 @app.route('/metrics')
