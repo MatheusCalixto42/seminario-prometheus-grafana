@@ -1,5 +1,5 @@
 # 📡 Laboratório de Observabilidade e Gerência de Redes
-> **Ambiente prático com Prometheus, Node Exporter, Alertmanager e API Flask em Docker**  
+> **Ambiente prático com Prometheus, Grafana, Node Exporter, Alertmanager e API Flask em Docker**  
 > *Projeto desenvolvido para o seminário da disciplina de Segurança e Gerência de Redes.*
 
 ---
@@ -34,7 +34,7 @@ graph TD
         AM["Alertmanager :9093<br/><i>(Agrupamento, Desduplicação & Silenciamento)</i>"]
     end
 
-    subgraph "Visualização (Próxima Fase)"
+    subgraph "Visualização"
         GRAF["Grafana :3000<br/><i>(Dashboards Executivos)</i>"]
     end
 
@@ -43,7 +43,7 @@ graph TD
     PROM -->|"Scraping HTTP :5000/metrics (5s)"| APP
     PROM -->|"Scraping Interno :9090 (5s)"| PROM
     PROM -->|"Disparo de Alertas (FIRING)"| AM
-    GRAF -.->|"Consultas PromQL"| PROM
+    GRAF -->|"Consultas PromQL"| PROM
 ```
 
 ---
@@ -85,7 +85,8 @@ Para executar o laboratório em qualquer sistema operacional (Linux, WSL2, macOS
 | **Node Exporter** | `:9100` | `http://localhost:9100/metrics` (Telemetria do ambiente Docker) |
 | **Prometheus Server** | `:9090` | `http://localhost:9090` (TSDB, Consultas PromQL e Targets) |
 | **Alertmanager** | `:9093` | `http://localhost:9093` (Painel NOC de Gestão de Alertas; nenhuma notificação externa configurada) |
-| **Load Generator** | — | Sem porta publicada; acessa a API pela rede interna do Docker |
+| **Grafana** | `:3000` | `http://localhost:3000` (Dashboards; usuário `admin`, senha `admin`) |
+| **Load Generator** | — | Simula 5 clientes simultâneos (variável `USUARIOS`); acessa a API pela rede interna do Docker |
 
 ### Rotas da API
 
@@ -95,7 +96,7 @@ Para executar o laboratório em qualquer sistema operacional (Linux, WSL2, macOS
 | `/produtos` | `GET` | Catálogo de produtos (tráfego normal) |
 | `/login` | `POST` | Autenticação; senha inválida retorna HTTP 401 |
 | `/checkout` | `POST` | Finalização de compra; sujeita à latência e à falha de gateway (HTTP 504) injetadas |
-| `/admin/caos` | `GET`, `POST` | Consulta ou altera `latencia_checkout_seg` e `falha_gateway` |
+| `/admin/caos` | `GET`, `POST` | Consulta ou altera `latencia_checkout_seg`, `falha_gateway`, `latencia_geral_seg`, `taxa_erro_404` e `memoria_mb` |
 | `/metrics` | `GET` | Métricas coletadas pelo Prometheus |
 
 ---
@@ -108,6 +109,7 @@ No painel do Prometheus (`http://localhost:9090/targets`), três alvos são moni
    - Mede tempo de resposta com o histograma `http_request_duration_seconds`.
    - Mede requisições simultâneas com o gauge `http_requests_in_progress`.
    - Mede tentativas de compra com `netshop_vendas_total`, com o rótulo `resultado`.
+   - Mede a memória do processo da API com `process_resident_memory_bytes`.
 2. **`sistema-operacional` (`node-exporter:9100`)**:
    - Monitora o ambiente Docker, e não o sistema operacional da máquina física (por exemplo, o Windows).
    - Telemetria de CPU, memória RAM e I/O de disco do kernel Linux que executa os contêineres.
@@ -129,20 +131,34 @@ As regras são avaliadas a cada **5 segundos** pelo Prometheus e disparadas para
 | **`Suspeita-Ataque-BruteForce`** | `critical` | `rate(http_requests_total{... endpoint="/login", status="401"}[30s]) > 0.5` | 5s | Detecta taxa elevada de falhas de autenticação na rota `/login`. |
 | **`Latencia-Critica-Checkout`** | `warning` | `histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{... endpoint="/checkout"}[30s]))) > 1.0` | 5s | Detecta latência p95 do checkout acima de 1 segundo. |
 | **`Falha-Gateway-Pagamento`** | `critical` | `rate(http_requests_total{... status=~"5.."}[30s]) > 0` | 5s | Detecta erros HTTP 5xx, como o 504 da falha no gateway de pagamento. |
+| **`Instabilidade-Erros-404`** | `warning` | `sum(rate(http_requests_total{... status="404"}[30s])) > 0.1` | 5s | Detecta instabilidade com respostas HTTP 404 na API. |
+| **`Consumo-Memoria-Elevado`** | `warning` | `process_resident_memory_bytes{...} > 250e6` | 10s | Detecta o processo da API usando mais de 250 MB de memória. |
+
+---
+
+## 📈 Dashboard no Grafana
+
+O Grafana sobe já conectado ao Prometheus e com o dashboard **NetShop - Observabilidade**, atualizado a cada 5 segundos:
+
+- **`grafana/provisioning/datasources/prometheus.yml`**: cria a fonte de dados apontando para `http://prometheus:9090`.
+- **`grafana/provisioning/dashboards/provider.yml`**: faz o Grafana carregar os dashboards da pasta `grafana/dashboards`.
+- **`grafana/dashboards/netshop.json`**: define os painéis de disponibilidade, alertas ativos, os 4 Sinais de Ouro, vendas e recursos do ambiente Docker.
+
+Para alterar um painel, edite o JSON. O Grafana recarrega o arquivo em até 10 segundos. Alterações feitas pela interface não são salvas nesse dashboard.
 
 ---
 
 ## 🧪 Roteiro de Testes e Simulação de Incidentes
 
-O `load-generator` envia tráfego continuamente, inclusive para o `/checkout`, então os cenários de caos não precisam de requisições manuais nessa rota.
+O `load-generator` simula 5 clientes enviando tráfego continuamente, inclusive para o `/checkout`, então os cenários de caos não precisam de requisições manuais nessa rota. Para mudar a quantidade de clientes, altere `USUARIOS` no `docker-compose.yml` e rode `docker compose up -d load-generator`.
 
 ### Painel interativo
-O painel automatiza os cenários de vendas, erros 5xx, queda e restauração. Execute-o na raiz do repositório:
+O painel automatiza os cenários de vendas, erros 5xx, queda, lentidão, instabilidade, consumo de memória, pico de usuários e restauração. Execute-o na raiz do repositório:
 ```bash
 python painel_seminario.py
 ```
 
-Os cenários de brute-force e latência não estão no painel e são executados apenas pelos comandos abaixo.
+Os cenários de brute-force e de latência apenas no checkout não estão no painel e são executados pelos comandos abaixo. A opção **4** desfaz todas as falhas injetadas.
 
 ### 1. Teste de Operação Normal (Tráfego Saudável)
 ```bash
@@ -202,6 +218,25 @@ docker compose start app
 ```
 * O Prometheus detecta o retorno em até 5 segundos, o target volta para **`UP`** e o alarme é resolvido automaticamente sem necessidade de limpeza manual.
 
+### 7. Lentidão, Instabilidade e Consumo de Memória
+```bash
+# Adiciona 1,5 segundo em todas as rotas da loja
+curl -X POST http://localhost:5000/admin/caos -d '{"latencia_geral_seg": 1.5}'
+
+# Faz 30% das requisições da loja retornarem HTTP 404
+curl -X POST http://localhost:5000/admin/caos -d '{"taxa_erro_404": 0.3}'
+
+# Ocupa 300 MB de memória no processo da API (limite de 1024 MB)
+curl -X POST http://localhost:5000/admin/caos -d '{"memoria_mb": 300}'
+
+# Desfaz os três cenários
+curl -X POST http://localhost:5000/admin/caos -d '{"latencia_geral_seg": 0, "taxa_erro_404": 0, "memoria_mb": 0}'
+```
+* **O que observar:** No Grafana, acompanhe a latência, o status HTTP e a memória da API. Os alertas `Latencia-Critica-Checkout`, `Instabilidade-Erros-404` e `Consumo-Memoria-Elevado` passam para **FIRING**.
+
+### 8. Pico de Usuários
+Use a opção **8** do painel para simular 20 usuários adicionais por 30 segundos e observe os painéis de tráfego, vendas e requisições em andamento.
+
 ---
 
 ## 📊 Status do Projeto e Próximos Passos
@@ -211,4 +246,4 @@ docker compose start app
 - [x] **Etapa 3:** Criação de queries PromQL e elaboração do catálogo de regras de alerta (`alert_rules.yml`).
 - [x] **Etapa 4:** Integração completa com Alertmanager (`alertmanager.yml`) para triagem, desduplicação e silenciamento.
 - [x] **Etapa 5:** Injeção de carga contínua com `load-generator`, controles de caos na API e painel interativo do seminário.
-- [ ] **Etapa 6:** Implementação dos Dashboards no Grafana *(Próxima Sessão)*.
+- [x] **Etapa 6:** Implementação dos Dashboards no Grafana com provisionamento automático.
