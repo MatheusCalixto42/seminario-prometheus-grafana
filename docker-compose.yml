@@ -42,34 +42,61 @@ services:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
     restart: always
 
-  # 5. Gerador de Tráfego Orgânico (Simula clientes navegando e comprando 24/7)
+  # 5. Gerador de Tráfego Orgânico (Simula vários clientes navegando e comprando 24/7)
   load-generator:
     image: curlimages/curl:latest
     container_name: load-generator
     restart: always
     depends_on:
       - app
+    environment:
+      - USUARIOS=5  # Quantidade de clientes simultâneos
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        while true; do
-          curl -s --max-time 5 http://app:5000/produtos > /dev/null
-          sleep 0.5
-          curl -s --max-time 5 http://app:5000/produtos > /dev/null
-          sleep 0.5
-          curl -s --max-time 5 -X POST http://app:5000/login -d '{"usuario":"cliente","senha":"cliente123"}' > /dev/null
-          sleep 0.5
-          curl -s --max-time 5 http://app:5000/produtos > /dev/null
-          sleep 0.5
-          curl -s --max-time 5 -X POST http://app:5000/checkout > /dev/null
-          sleep 1
+        cliente() {
+          while true; do
+            curl -s --max-time 5 http://app:5000/produtos > /dev/null
+            sleep 0.5
+            curl -s --max-time 5 http://app:5000/produtos > /dev/null
+            sleep 0.5
+            curl -s --max-time 5 -X POST http://app:5000/login -d '{"usuario":"cliente","senha":"cliente123"}' > /dev/null
+            sleep 0.5
+            curl -s --max-time 5 http://app:5000/produtos > /dev/null
+            sleep 0.5
+            curl -s --max-time 5 -X POST http://app:5000/checkout > /dev/null
+            sleep 1
+          done
+        }
+        for i in $$(seq 1 $$USUARIOS); do
+          cliente &
+          sleep 0.7
         done
+        wait
 
-# Volume persistente para não perder o histórico de métricas ao reiniciar contêineres
+  # 6. Visualização e Dashboards (consulta o Prometheus via PromQL)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+# Volumes persistentes para não perder o histórico de métricas e os dados do Grafana ao reiniciar contêineres
 volumes:
   prometheus_data:
+  grafana_data:
 
 # --Comentários sobre o arquivo--
 
 # - volumes: Mapeamos o arquivo local ./prometheus/prometheus.yml diretamente para dentro do contêiner em /etc/prometheus/prometheus.yml.
-# - As portas expostas no host (5000, 9100, 9090) permitem que você acesse tanto a API quanto as interfaces web do Prometheus e do Node Exporter pelo navegador da sua máquina.
+# - As portas expostas no host (5000, 9100, 9090, 9093, 3000) permitem que você acesse a API e as interfaces web do Node Exporter, do Prometheus, do Alertmanager e do Grafana pelo navegador da sua máquina.
