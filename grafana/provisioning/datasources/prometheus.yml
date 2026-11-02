@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus          # Identificador fixo referenciado pelos painéis do dashboard
+    type: prometheus
+    access: proxy            # O servidor do Grafana faz as consultas, não o navegador
+    url: http://prometheus:9090  # DNS interno do Docker; "localhost" apontaria para o próprio Grafana
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 5s       # Igual ao scrape_interval do Prometheus
